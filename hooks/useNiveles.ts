@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../services/api';
+import { getNivelesLocales } from '../services/localNiveles';
 import type { Nivel, TipoJuego } from '../types/juegos';
 
 interface UseNivelesResult {
@@ -24,10 +25,17 @@ export function useNiveles(tipoJuego: TipoJuego): UseNivelesResult {
     api
       .getNiveles(tipoJuego)
       .then((data) => {
-        if (!cancelled) setNiveles(data);
+        if (cancelled) return;
+        // If backend returns empty array, fall back to local seed
+        if (data.length > 0) {
+          setNiveles(data);
+        } else {
+          setNiveles(getNivelesLocales(tipoJuego));
+        }
       })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err.message);
+      .catch(() => {
+        // Backend unavailable — use local seed data silently
+        if (!cancelled) setNiveles(getNivelesLocales(tipoJuego));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

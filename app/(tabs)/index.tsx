@@ -1,4 +1,5 @@
-import { ScrollView, View, Text, StyleSheet, SafeAreaView } from 'react-native';
+import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAtomValue } from 'jotai';
 import { GameCard } from '../../components/GameCard';
@@ -44,6 +45,13 @@ const JUEGOS: Array<{
     emoji: '🚀',
     ruta: '/games/conductor-texto',
   },
+  {
+    tipoJuego: 'memotest',
+    titulo: 'Memotest de Palabras',
+    descripcion: '¡Encuentra las parejas de palabras!',
+    emoji: '🧠',
+    ruta: '/games/memotest',
+  },
 ];
 
 // Pantalla puramente presentacional — solo consume átomos, no fetching
@@ -53,7 +61,7 @@ export default function HomeScreen() {
   const puntos = useAtomValue(puntosAtom);
   const racha = useAtomValue(rachaActualAtom);
 
-  const nombre = usuario?.nombre ?? 'aventurera';
+  const nombre = usuario?.nombre ?? 'Male';
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -62,22 +70,20 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Header — saludo arriba, badges abajo */}
         <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.greeting}>¡Hola, {nombre}! 👋</Text>
-            <Text style={styles.subtitle}>¿Qué aventura elegimos hoy?</Text>
-          </View>
+          <Text style={styles.greeting}>¡Hola, {nombre}! 👋</Text>
+          <Text style={styles.subtitle}>¿Qué aventura elegimos hoy?</Text>
 
-          {/* Indicadores rápidos */}
+          {/* Indicadores rápidos en fila bajo el saludo */}
           <View style={styles.badges}>
             <View style={styles.badge}>
               <Text style={styles.badgeEmoji}>⭐</Text>
-              <Text style={styles.badgeValue}>{puntos}</Text>
+              <Text style={styles.badgeValue}>{puntos} pts</Text>
             </View>
             <View style={styles.badge}>
               <Text style={styles.badgeEmoji}>🔥</Text>
-              <Text style={styles.badgeValue}>{racha}d</Text>
+              <Text style={styles.badgeValue}>{racha} días</Text>
             </View>
           </View>
         </View>
@@ -125,27 +131,28 @@ const styles = StyleSheet.create({
     paddingTop: 24,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: 'column',
     marginBottom: 20,
+    gap: 8,
   },
-  headerText: { flex: 1 },
   greeting: {
-    ...Typography.h2,
+    fontSize: 22,
+    lineHeight: 30,
+    letterSpacing: 0.8,
     color: Colors.textPrimary,
     fontFamily: 'OpenDyslexic-Bold',
   },
   subtitle: {
     ...Typography.body,
     color: Colors.textSecondary,
-    marginTop: 4,
     fontFamily: 'OpenDyslexic',
   },
   badges: {
     flexDirection: 'row',
     gap: 8,
+    marginTop: 4,
   },
+  headerText: { flex: 1 }, // kept for TS, unused visually
   badge: {
     backgroundColor: Colors.lexyPurpleLight,
     borderRadius: 16,

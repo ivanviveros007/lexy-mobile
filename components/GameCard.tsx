@@ -19,6 +19,7 @@ const CARD_COLOR: Record<TipoJuego, string> = {
   palabras_gemelas: Colors.palabrasGemelas,
   intruso_rimas: Colors.intrusoRimas,
   conductor_texto: Colors.conductorTexto,
+  memotest: Colors.memotest,
 };
 
 export function GameCard({

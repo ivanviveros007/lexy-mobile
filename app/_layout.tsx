@@ -27,8 +27,6 @@ export default function RootLayout() {
     <Provider>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.backgroundCream } }}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="games" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="+not-found" />
       </Stack>
     </Provider>
   );

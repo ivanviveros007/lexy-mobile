@@ -3,7 +3,7 @@
     "name": "Lexy",
     "slug": "lexy",
     "version": "1.0.0",
-    "orientation": "landscape",
+    "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "lexy",
     "userInterfaceStyle": "light",

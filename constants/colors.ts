@@ -22,6 +22,7 @@ export const Colors = {
   palabrasGemelas: '#4DB6AC',  // verde azulado
   intrusoRimas: '#FFB74D',     // ámbar
   conductorTexto: '#81C784',   // verde suave
+  memotest: '#BA68C8',         // lila
 
   // Estado
   success: '#4CAF50',
