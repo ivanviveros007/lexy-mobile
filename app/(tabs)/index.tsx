@@ -5,6 +5,7 @@ import { useAtomValue } from 'jotai';
 import { GameCard } from '../../components/GameCard';
 import { LexyCharacter } from '../../components/LexyCharacter';
 import { usuarioAtom, puntosAtom, rachaActualAtom } from '../../atoms';
+import { useProgresoLocal } from '../../hooks/useProgresoLocal';
 import { Colors } from '../../constants/colors';
 import { Typography } from '../../constants/fonts';
 import type { TipoJuego } from '../../types/juegos';
@@ -60,6 +61,7 @@ export default function HomeScreen() {
   const usuario = useAtomValue(usuarioAtom);
   const puntos = useAtomValue(puntosAtom);
   const racha = useAtomValue(rachaActualAtom);
+  const progreso = useProgresoLocal();
 
   const nombre = usuario?.nombre ?? 'Male';
 
@@ -108,8 +110,8 @@ export default function HomeScreen() {
             titulo={juego.titulo}
             descripcion={juego.descripcion}
             emoji={juego.emoji}
-            nivelesCompletados={0}
-            totalNiveles={10}
+            nivelesCompletados={progreso?.[juego.tipoJuego]?.nivelesCompletados ?? 0}
+            totalNiveles={progreso?.[juego.tipoJuego]?.totalNiveles ?? 3}
             onPress={() => router.push(juego.ruta as any)}
           />
         ))}

@@ -16,13 +16,13 @@ import { useNiveles } from '../../../hooks/useNiveles';
 import { useGameLogic } from '../../../hooks/useGameLogic';
 import { LexyCharacter } from '../../../components/LexyCharacter';
 import { iniciarPartidaAtom, estadoPartidaAtom } from '../../../atoms/gameAtom';
+import { getNivelIndex, saveNivelIndex } from '../../../services/progresoLocal';
 import { Colors } from '../../../constants/colors';
 import { Typography } from '../../../constants/fonts';
 import type { ConfigConductorTexto } from '../../../types/juegos';
 
 const GAME_COLOR = Colors.conductorTexto;
 
-// Renders text where each word is long-pressable to trigger TTS
 function TappableText({
   text,
   onLongPressWord,
@@ -54,18 +54,30 @@ export default function ConductorTextoScreen() {
   const estadoPartida = useAtomValue(estadoPartidaAtom);
 
   const { niveles, loading, error } = useNiveles('conductor_texto');
-  const nivel = niveles[0] ?? null;
-  const config = nivel?.configuracion as ConfigConductorTexto | undefined;
 
+  const [nivelIndex, setNivelIndex] = useState(0);
+  const [indexLoaded, setIndexLoaded] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
   const [opcionResultado, setOpcionResultado] = useState<Record<string, 'correcto' | 'incorrecto'>>({});
   const [answered, setAnswered] = useState(false);
   const [lexyMsg, setLexyMsg] = useState('Mantén presionada una palabra para escucharla 🔊');
   const [lexyMood, setLexyMood] = useState<'thinking' | 'happy' | 'celebrating' | 'encouraging'>('thinking');
 
+  useEffect(() => {
+    getNivelIndex('conductor_texto').then((i) => {
+      setNivelIndex(i);
+      setIndexLoaded(true);
+    });
+  }, []);
+
+  const nivel = indexLoaded ? (niveles[nivelIndex] ?? null) : null;
+  const config = nivel?.configuracion as ConfigConductorTexto | undefined;
+  const isLastLevel = nivelIndex >= niveles.length - 1;
+
   const { responder, aciertos, tiempoSegundos } = useGameLogic();
   const conductor = useConductorTexto(
     config ?? { tipo: 'conductor_texto', texto: '', preguntas: [], minAciertos: 1 },
+    nivel?.id ?? '',
   );
 
   useEffect(() => {
@@ -74,6 +86,25 @@ export default function ConductorTextoScreen() {
       setGameStarted(true);
     }
   }, [nivel, gameStarted]);
+
+  const handleNextLevel = useCallback(async () => {
+    const next = nivelIndex + 1;
+    await saveNivelIndex('conductor_texto', next);
+    setNivelIndex(next);
+    setGameStarted(false);
+    setOpcionResultado({});
+    setAnswered(false);
+    setLexyMsg('Mantén presionada una palabra para escucharla 🔊');
+    setLexyMood('thinking');
+  }, [nivelIndex]);
+
+  const handleRetry = useCallback(() => {
+    setGameStarted(false);
+    setOpcionResultado({});
+    setAnswered(false);
+    setLexyMsg('Mantén presionada una palabra para escucharla 🔊');
+    setLexyMood('thinking');
+  }, []);
 
   const handleOpcion = useCallback(
     (opcion: string) => {
@@ -109,7 +140,7 @@ export default function ConductorTextoScreen() {
     [answered, conductor, responder],
   );
 
-  if (loading) {
+  if (loading || !indexLoaded) {
     return (
       <SafeAreaView style={styles.safe}>
         <ActivityIndicator size="large" color={GAME_COLOR} style={{ flex: 1 }} />
@@ -140,16 +171,26 @@ export default function ConductorTextoScreen() {
             size={100}
             message={
               gano
-                ? `¡Lectora experta! 📖 ${aciertos} respuestas en ${tiempoSegundos}s`
+                ? isLastLevel
+                  ? '¡Completaste todas las historias! ¡Sos una lectora experta! 🏆'
+                  : `¡Lectora experta! 📖 ${aciertos} respuestas en ${tiempoSegundos}s`
                 : '¡Lo intentaste con todo! ¡Vamos de nuevo! 💪'
             }
           />
+          {gano && !isLastLevel && (
+            <TouchableOpacity
+              style={[styles.btnPrimary, { backgroundColor: GAME_COLOR }]}
+              onPress={handleNextLevel}
+            >
+              <Text style={styles.btnPrimaryText}>¡Nivel {nivelIndex + 2}! ✨</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
-            style={[styles.btnPrimary, { backgroundColor: GAME_COLOR }]}
-            onPress={() => router.back()}
+            style={gano && !isLastLevel ? styles.btnOutline : [styles.btnPrimary, { backgroundColor: GAME_COLOR }]}
+            onPress={gano ? () => router.back() : handleRetry}
           >
-            <Text style={styles.btnPrimaryText}>
-              {gano ? '¡A la siguiente! ✨' : 'Intentar de nuevo'}
+            <Text style={gano && !isLastLevel ? [styles.btnOutlineText, { color: GAME_COLOR }] : styles.btnPrimaryText}>
+              {gano ? (isLastLevel ? '¡Al inicio! 🏠' : 'Volver al inicio') : 'Intentar de nuevo'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -161,20 +202,18 @@ export default function ConductorTextoScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* Top bar */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={[styles.navText, { color: GAME_COLOR }]}>← Volver</Text>
         </TouchableOpacity>
         <Text style={styles.navLabel}>
-          Pregunta {conductor.preguntaIndex + 1} / {conductor.totalPreguntas}
+          Nivel {nivelIndex + 1} · Pregunta {conductor.preguntaIndex + 1}/{conductor.totalPreguntas}
         </Text>
         <View style={styles.timerBadge}>
           <Text style={styles.timerText}>⏱ {tiempoSegundos}s</Text>
         </View>
       </View>
 
-      {/* Progress dots */}
       <View style={styles.dots}>
         {Array.from({ length: conductor.totalPreguntas }).map((_, i) => (
           <View
@@ -195,14 +234,10 @@ export default function ConductorTextoScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* TTS hint */}
         <View style={styles.hintBox}>
-          <Text style={styles.hintText}>
-            🔊 Mantén presionada cualquier palabra para escucharla
-          </Text>
+          <Text style={styles.hintText}>🔊 Mantén presionada cualquier palabra para escucharla</Text>
         </View>
 
-        {/* Story text — each word is long-pressable */}
         <View style={styles.textCard}>
           <TappableText
             text={conductor.texto}
@@ -211,7 +246,6 @@ export default function ConductorTextoScreen() {
           />
         </View>
 
-        {/* Sentence with blank */}
         {pregunta && (
           <>
             <View style={styles.sentenceBox}>
@@ -222,10 +256,8 @@ export default function ConductorTextoScreen() {
               />
             </View>
 
-            {/* Lexy */}
             <LexyCharacter mood={lexyMood} size={64} message={lexyMsg} />
 
-            {/* Options */}
             <View style={styles.optionsGrid}>
               {pregunta.opciones.map((opcion) => {
                 const state = opcionResultado[opcion];
@@ -280,7 +312,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   navText: { fontSize: 17, fontFamily: 'OpenDyslexic' },
-  navLabel: { ...Typography.body, color: Colors.textSecondary, fontFamily: 'OpenDyslexic' },
+  navLabel: { ...Typography.body, color: Colors.textSecondary, fontFamily: 'OpenDyslexic', fontSize: 13 },
   timerBadge: {
     backgroundColor: Colors.lexyPurpleLight,
     borderRadius: 12,
@@ -290,13 +322,7 @@ const styles = StyleSheet.create({
   timerText: { fontSize: 14, color: Colors.lexyPurpleDark, fontFamily: 'OpenDyslexic' },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingVertical: 10 },
   dot: { width: 12, height: 12, borderRadius: 6 },
-  content: {
-    paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 24,
-    gap: 20,
-    alignItems: 'center',
-  },
+  content: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24, gap: 20, alignItems: 'center' },
   hintBox: {
     backgroundColor: Colors.lexyPurpleLight,
     borderRadius: 12,
@@ -304,13 +330,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     width: '100%',
   },
-  hintText: {
-    fontSize: 14,
-    color: Colors.lexyPurpleDark,
-    fontFamily: 'OpenDyslexic',
-    textAlign: 'center',
-    letterSpacing: 0.4,
-  },
+  hintText: { fontSize: 14, color: Colors.lexyPurpleDark, fontFamily: 'OpenDyslexic', textAlign: 'center', letterSpacing: 0.4 },
   textCard: {
     backgroundColor: Colors.backgroundCard,
     borderRadius: 20,
@@ -325,13 +345,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   tappableRow: { flexDirection: 'row', flexWrap: 'wrap' },
-  tappableWord: {
-    fontSize: 20,
-    fontFamily: 'OpenDyslexic',
-    letterSpacing: 0.8,
-    lineHeight: 34,
-    color: Colors.textPrimary,
-  },
+  tappableWord: { fontSize: 20, fontFamily: 'OpenDyslexic', letterSpacing: 0.8, lineHeight: 34, color: Colors.textPrimary },
   storyWord: { fontSize: 20 },
   sentenceBox: {
     backgroundColor: Colors.backgroundCard,
@@ -341,20 +355,8 @@ const styles = StyleSheet.create({
     padding: 20,
     width: '100%',
   },
-  sentenceWord: {
-    fontSize: 22,
-    fontFamily: 'OpenDyslexic-Bold',
-    letterSpacing: 1.0,
-    lineHeight: 36,
-    color: Colors.textPrimary,
-  },
-  optionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 14,
-    width: '100%',
-  },
+  sentenceWord: { fontSize: 22, fontFamily: 'OpenDyslexic-Bold', letterSpacing: 1.0, lineHeight: 36, color: Colors.textPrimary },
+  optionsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 14, width: '100%' },
   optionBtn: {
     backgroundColor: Colors.backgroundCard,
     borderWidth: 2.5,
@@ -372,34 +374,12 @@ const styles = StyleSheet.create({
   },
   optionCorrect: { backgroundColor: Colors.successLight, borderColor: Colors.success },
   optionError: { backgroundColor: Colors.errorLight, borderColor: Colors.error },
-  optionText: {
-    fontSize: 22,
-    fontFamily: 'OpenDyslexic-Bold',
-    letterSpacing: 1.0,
-    textAlign: 'center',
-  },
+  optionText: { fontSize: 22, fontFamily: 'OpenDyslexic-Bold', letterSpacing: 1.0, textAlign: 'center' },
   stateIcon: { fontSize: 18 },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 24,
-    paddingHorizontal: 32,
-  },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 20, paddingHorizontal: 32 },
   errorText: { ...Typography.body, color: Colors.error, textAlign: 'center' },
-  btnOutline: {
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: GAME_COLOR,
-  },
+  btnOutline: { paddingVertical: 14, paddingHorizontal: 32, borderRadius: 20, borderWidth: 2, borderColor: GAME_COLOR, width: '100%', alignItems: 'center' },
   btnOutlineText: { fontSize: 18, fontFamily: 'OpenDyslexic' },
-  btnPrimary: { paddingVertical: 18, paddingHorizontal: 40, borderRadius: 24 },
-  btnPrimaryText: {
-    fontSize: 20,
-    color: '#FFFFFF',
-    fontFamily: 'OpenDyslexic-Bold',
-    letterSpacing: 0.5,
-  },
+  btnPrimary: { paddingVertical: 18, paddingHorizontal: 40, borderRadius: 24, width: '100%', alignItems: 'center' },
+  btnPrimaryText: { fontSize: 20, color: '#FFFFFF', fontFamily: 'OpenDyslexic-Bold', letterSpacing: 0.5 },
 });

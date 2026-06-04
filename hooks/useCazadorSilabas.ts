@@ -31,11 +31,17 @@ function shuffle<T>(arr: T[]): T[] {
   return out;
 }
 
-export function useCazadorSilabas(config: ConfigCazadorSilabas): UseCazadorSilabasResult {
+export function useCazadorSilabas(config: ConfigCazadorSilabas, resetKey: string = ''): UseCazadorSilabasResult {
   const [palabraIndex, setPalabraIndex] = useState(0);
   const [silabasColocadas, setSilabasColocadas] = useState<string[]>([]);
   const [silabasDisponibles, setSilabasDisponibles] = useState<SilabaItem[]>([]);
   const [wrongId, setWrongId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPalabraIndex(0);
+    setSilabasColocadas([]);
+    setSilabasDisponibles([]);
+  }, [resetKey]);
 
   const palabraActual = config.palabras[palabraIndex] ?? null;
   const juegoTerminado = palabraIndex >= config.palabras.length;

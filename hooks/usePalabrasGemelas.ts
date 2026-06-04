@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import * as Speech from 'expo-speech';
 import type { ConfigPalabrasGemelas, ParPalabras } from '../types/juegos';
 
@@ -11,8 +11,12 @@ interface UsePalabrasGemelasResult {
   juegoTerminado: boolean;
 }
 
-export function usePalabrasGemelas(config: ConfigPalabrasGemelas): UsePalabrasGemelasResult {
+export function usePalabrasGemelas(config: ConfigPalabrasGemelas, resetKey: string = ''): UsePalabrasGemelasResult {
   const [parIndex, setParIndex] = useState(0);
+
+  useEffect(() => {
+    setParIndex(0);
+  }, [resetKey]);
 
   const parActual = config.pares[parIndex] ?? null;
   const juegoTerminado = parIndex >= config.pares.length;

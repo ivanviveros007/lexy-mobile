@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import * as Speech from 'expo-speech';
 import type { ConfigConductorTexto, PreguntaTexto } from '../types/juegos';
 
@@ -14,9 +14,14 @@ interface UseConductorTextoResult {
   hablarPalabra: (palabra: string) => void;
 }
 
-export function useConductorTexto(config: ConfigConductorTexto): UseConductorTextoResult {
+export function useConductorTexto(config: ConfigConductorTexto, resetKey: string = ''): UseConductorTextoResult {
   const [preguntaIndex, setPreguntaIndex] = useState(0);
   const [selectedOpcion, setSelectedOpcion] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPreguntaIndex(0);
+    setSelectedOpcion(null);
+  }, [resetKey]);
 
   const preguntaActual = config.preguntas[preguntaIndex] ?? null;
   const juegoTerminado = preguntaIndex >= config.preguntas.length;

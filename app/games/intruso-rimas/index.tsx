@@ -15,6 +15,7 @@ import { useNiveles } from '../../../hooks/useNiveles';
 import { useGameLogic } from '../../../hooks/useGameLogic';
 import { LexyCharacter } from '../../../components/LexyCharacter';
 import { iniciarPartidaAtom, estadoPartidaAtom } from '../../../atoms/gameAtom';
+import { getNivelIndex, saveNivelIndex } from '../../../services/progresoLocal';
 import { Colors } from '../../../constants/colors';
 import { Typography } from '../../../constants/fonts';
 import type { ConfigIntrusoRimas } from '../../../types/juegos';
@@ -28,9 +29,9 @@ export default function IntrusoRimasScreen() {
   const estadoPartida = useAtomValue(estadoPartidaAtom);
 
   const { niveles, loading, error } = useNiveles('intruso_rimas');
-  const nivel = niveles[0] ?? null;
-  const config = nivel?.configuracion as ConfigIntrusoRimas | undefined;
 
+  const [nivelIndex, setNivelIndex] = useState(0);
+  const [indexLoaded, setIndexLoaded] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
   const [tappedId, setTappedId] = useState<string | null>(null);
   const [lexyMsg, setLexyMsg] = useState('Dos palabras riman entre sí. ¡Encuentra la que no rima! 🎵');
@@ -38,9 +39,21 @@ export default function IntrusoRimasScreen() {
 
   const shakeAnims = useRef<Record<string, Animated.Value>>({}).current;
 
+  useEffect(() => {
+    getNivelIndex('intruso_rimas').then((i) => {
+      setNivelIndex(i);
+      setIndexLoaded(true);
+    });
+  }, []);
+
+  const nivel = indexLoaded ? (niveles[nivelIndex] ?? null) : null;
+  const config = nivel?.configuracion as ConfigIntrusoRimas | undefined;
+  const isLastLevel = nivelIndex >= niveles.length - 1;
+
   const { responder, aciertos, tiempoSegundos } = useGameLogic();
   const rimas = useIntrusoRimas(
     config ?? { tipo: 'intruso_rimas', grupos: [], minAciertos: 1 },
+    nivel?.id ?? '',
   );
 
   useEffect(() => {
@@ -50,12 +63,26 @@ export default function IntrusoRimasScreen() {
     }
   }, [nivel, gameStarted]);
 
-  // Pre-create shake animated values for each word card
+  const handleNextLevel = useCallback(async () => {
+    const next = nivelIndex + 1;
+    await saveNivelIndex('intruso_rimas', next);
+    setNivelIndex(next);
+    setGameStarted(false);
+    setTappedId(null);
+    setLexyMsg('Dos palabras riman entre sí. ¡Encuentra la que no rima! 🎵');
+    setLexyMood('thinking');
+  }, [nivelIndex]);
+
+  const handleRetry = useCallback(() => {
+    setGameStarted(false);
+    setTappedId(null);
+    setLexyMsg('Dos palabras riman entre sí. ¡Encuentra la que no rima! 🎵');
+    setLexyMood('thinking');
+  }, []);
+
   const getShakeAnim = useCallback(
     (id: string) => {
-      if (!shakeAnims[id]) {
-        shakeAnims[id] = new Animated.Value(0);
-      }
+      if (!shakeAnims[id]) shakeAnims[id] = new Animated.Value(0);
       return shakeAnims[id];
     },
     [shakeAnims],
@@ -102,7 +129,7 @@ export default function IntrusoRimasScreen() {
     [tappedId, rimas, responder, shake],
   );
 
-  if (loading) {
+  if (loading || !indexLoaded) {
     return (
       <SafeAreaView style={styles.safe}>
         <ActivityIndicator size="large" color={GAME_COLOR} style={{ flex: 1 }} />
@@ -133,16 +160,26 @@ export default function IntrusoRimasScreen() {
             size={100}
             message={
               gano
-                ? `¡Oído musical! 🎶 ${aciertos} intrusos atrapados en ${tiempoSegundos}s`
+                ? isLastLevel
+                  ? '¡Sos un oído musical experto! ¡Completaste todo! 🏆'
+                  : `¡Oído musical! 🎶 ${aciertos} intrusos atrapados en ${tiempoSegundos}s`
                 : '¡Casi! ¡La próxima es tuya! 💪'
             }
           />
+          {gano && !isLastLevel && (
+            <TouchableOpacity
+              style={[styles.btnPrimary, { backgroundColor: GAME_COLOR }]}
+              onPress={handleNextLevel}
+            >
+              <Text style={styles.btnPrimaryText}>¡Nivel {nivelIndex + 2}! ✨</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
-            style={[styles.btnPrimary, { backgroundColor: GAME_COLOR }]}
-            onPress={() => router.back()}
+            style={gano && !isLastLevel ? styles.btnOutline : [styles.btnPrimary, { backgroundColor: GAME_COLOR }]}
+            onPress={gano ? () => router.back() : handleRetry}
           >
-            <Text style={styles.btnPrimaryText}>
-              {gano ? '¡A la siguiente! ✨' : 'Intentar de nuevo'}
+            <Text style={gano && !isLastLevel ? [styles.btnOutlineText, { color: GAME_COLOR }] : styles.btnPrimaryText}>
+              {gano ? (isLastLevel ? '¡Al inicio! 🏠' : 'Volver al inicio') : 'Intentar de nuevo'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -152,20 +189,18 @@ export default function IntrusoRimasScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* Top bar */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={[styles.navText, { color: GAME_COLOR }]}>← Volver</Text>
         </TouchableOpacity>
         <Text style={styles.navLabel}>
-          Grupo {rimas.grupoIndex + 1} / {rimas.totalGrupos}
+          Nivel {nivelIndex + 1} · Grupo {rimas.grupoIndex + 1}/{rimas.totalGrupos}
         </Text>
         <View style={styles.timerBadge}>
           <Text style={styles.timerText}>⏱ {tiempoSegundos}s</Text>
         </View>
       </View>
 
-      {/* Progress dots */}
       <View style={styles.dots}>
         {Array.from({ length: rimas.totalGrupos }).map((_, i) => (
           <View
@@ -188,7 +223,6 @@ export default function IntrusoRimasScreen() {
       <View style={styles.content}>
         <Text style={styles.questionLabel}>🎵 ¿Cuál NO rima con las demás?</Text>
 
-        {/* Word cards grid */}
         <View style={styles.cardsGrid}>
           {rimas.palabrasMezcladas.map((item) => {
             const shakeX = getShakeAnim(item.id);
@@ -199,10 +233,7 @@ export default function IntrusoRimasScreen() {
             return (
               <Animated.View
                 key={item.id}
-                style={[
-                  styles.cardWrap,
-                  { transform: [{ translateX: shakeX }] },
-                ]}
+                style={[styles.cardWrap, { transform: [{ translateX: shakeX }] }]}
               >
                 <TouchableOpacity
                   style={[
@@ -251,7 +282,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   navText: { fontSize: 17, fontFamily: 'OpenDyslexic' },
-  navLabel: { ...Typography.body, color: Colors.textSecondary, fontFamily: 'OpenDyslexic' },
+  navLabel: { ...Typography.body, color: Colors.textSecondary, fontFamily: 'OpenDyslexic', fontSize: 13 },
   timerBadge: {
     backgroundColor: Colors.lexyPurpleLight,
     borderRadius: 12,
@@ -268,19 +299,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 24,
   },
-  questionLabel: {
-    ...Typography.h3,
-    color: Colors.textPrimary,
-    fontFamily: 'OpenDyslexic-Bold',
-    textAlign: 'center',
-  },
-  cardsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 16,
-    width: '100%',
-  },
+  questionLabel: { ...Typography.h3, color: Colors.textPrimary, fontFamily: 'OpenDyslexic-Bold', textAlign: 'center' },
+  cardsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 16, width: '100%' },
   cardWrap: { width: '44%' },
   wordCard: {
     backgroundColor: Colors.backgroundCard,
@@ -299,34 +319,12 @@ const styles = StyleSheet.create({
   },
   cardSuccess: { backgroundColor: Colors.successLight, borderColor: Colors.success },
   cardError: { backgroundColor: Colors.errorLight, borderColor: Colors.error },
-  wordText: {
-    fontSize: 28,
-    fontFamily: 'OpenDyslexic-Bold',
-    letterSpacing: 1.5,
-    textAlign: 'center',
-  },
+  wordText: { fontSize: 28, fontFamily: 'OpenDyslexic-Bold', letterSpacing: 1.5, textAlign: 'center' },
   resultIcon: { fontSize: 22 },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 24,
-    paddingHorizontal: 32,
-  },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 20, paddingHorizontal: 32 },
   errorText: { ...Typography.body, color: Colors.error, textAlign: 'center' },
-  btnOutline: {
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: GAME_COLOR,
-  },
+  btnOutline: { paddingVertical: 14, paddingHorizontal: 32, borderRadius: 20, borderWidth: 2, borderColor: GAME_COLOR, width: '100%', alignItems: 'center' },
   btnOutlineText: { fontSize: 18, fontFamily: 'OpenDyslexic' },
-  btnPrimary: { paddingVertical: 18, paddingHorizontal: 40, borderRadius: 24 },
-  btnPrimaryText: {
-    fontSize: 20,
-    color: '#FFFFFF',
-    fontFamily: 'OpenDyslexic-Bold',
-    letterSpacing: 0.5,
-  },
+  btnPrimary: { paddingVertical: 18, paddingHorizontal: 40, borderRadius: 24, width: '100%', alignItems: 'center' },
+  btnPrimaryText: { fontSize: 20, color: '#FFFFFF', fontFamily: 'OpenDyslexic-Bold', letterSpacing: 0.5 },
 });

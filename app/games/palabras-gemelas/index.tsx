@@ -15,21 +15,18 @@ import { useNiveles } from '../../../hooks/useNiveles';
 import { useGameLogic } from '../../../hooks/useGameLogic';
 import { LexyCharacter } from '../../../components/LexyCharacter';
 import { iniciarPartidaAtom, estadoPartidaAtom } from '../../../atoms/gameAtom';
+import { getNivelIndex, saveNivelIndex } from '../../../services/progresoLocal';
 import { Colors } from '../../../constants/colors';
 import { Typography } from '../../../constants/fonts';
 import type { ConfigPalabrasGemelas } from '../../../types/juegos';
 
 const GAME_COLOR = Colors.palabrasGemelas;
 
-// Highlight letters that differ between two words
 function WordDiff({ wordA, wordB, style }: { wordA: string; wordB: string; style?: object }) {
-  const maxLen = Math.max(wordA.length, wordB.length);
   return (
     <View style={styles.wordDiffRow}>
       {Array.from({ length: wordA.length }).map((_, i) => {
-        const isDiff =
-          i >= wordB.length ||
-          wordA[i].toLowerCase() !== wordB[i].toLowerCase();
+        const isDiff = i >= wordB.length || wordA[i].toLowerCase() !== wordB[i].toLowerCase();
         return (
           <Text key={i} style={[styles.wordChar, isDiff && styles.wordCharDiff, style]}>
             {wordA[i]}
@@ -46,9 +43,9 @@ export default function PalabrasGemelasScreen() {
   const estadoPartida = useAtomValue(estadoPartidaAtom);
 
   const { niveles, loading, error } = useNiveles('palabras_gemelas');
-  const nivel = niveles[0] ?? null;
-  const config = nivel?.configuracion as ConfigPalabrasGemelas | undefined;
 
+  const [nivelIndex, setNivelIndex] = useState(0);
+  const [indexLoaded, setIndexLoaded] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
   const [resultado, setResultado] = useState<'correcto' | 'incorrecto' | null>(null);
   const [lexyMsg, setLexyMsg] = useState('¿Son la misma palabra? ¡Fijate bien en cada letra! 🔍');
@@ -56,9 +53,21 @@ export default function PalabrasGemelasScreen() {
 
   const feedbackScale = useRef(new Animated.Value(1)).current;
 
+  useEffect(() => {
+    getNivelIndex('palabras_gemelas').then((i) => {
+      setNivelIndex(i);
+      setIndexLoaded(true);
+    });
+  }, []);
+
+  const nivel = indexLoaded ? (niveles[nivelIndex] ?? null) : null;
+  const config = nivel?.configuracion as ConfigPalabrasGemelas | undefined;
+  const isLastLevel = nivelIndex >= niveles.length - 1;
+
   const { responder, aciertos, tiempoSegundos } = useGameLogic();
   const gemelas = usePalabrasGemelas(
     config ?? { tipo: 'palabras_gemelas', pares: [], minAciertos: 1 },
+    nivel?.id ?? '',
   );
 
   useEffect(() => {
@@ -67,6 +76,23 @@ export default function PalabrasGemelasScreen() {
       setGameStarted(true);
     }
   }, [nivel, gameStarted]);
+
+  const handleNextLevel = useCallback(async () => {
+    const next = nivelIndex + 1;
+    await saveNivelIndex('palabras_gemelas', next);
+    setNivelIndex(next);
+    setGameStarted(false);
+    setResultado(null);
+    setLexyMsg('¿Son la misma palabra? ¡Fijate bien en cada letra! 🔍');
+    setLexyMood('thinking');
+  }, [nivelIndex]);
+
+  const handleRetry = useCallback(() => {
+    setGameStarted(false);
+    setResultado(null);
+    setLexyMsg('¿Son la misma palabra? ¡Fijate bien en cada letra! 🔍');
+    setLexyMood('thinking');
+  }, []);
 
   const handleRespuesta = useCallback(
     (esSi: boolean) => {
@@ -87,7 +113,6 @@ export default function PalabrasGemelasScreen() {
         setLexyMood('encouraging');
       }
 
-      // Pulse animation on feedback
       Animated.sequence([
         Animated.timing(feedbackScale, { toValue: 1.04, duration: 100, useNativeDriver: true }),
         Animated.timing(feedbackScale, { toValue: 1.0, duration: 120, useNativeDriver: true }),
@@ -103,7 +128,7 @@ export default function PalabrasGemelasScreen() {
     [resultado, gemelas, responder, feedbackScale],
   );
 
-  if (loading) {
+  if (loading || !indexLoaded) {
     return (
       <SafeAreaView style={styles.safe}>
         <ActivityIndicator size="large" color={GAME_COLOR} style={{ flex: 1 }} />
@@ -134,16 +159,26 @@ export default function PalabrasGemelasScreen() {
             size={100}
             message={
               gano
-                ? `¡Detective experta! 🏆 ${aciertos} aciertos en ${tiempoSegundos}s`
+                ? isLastLevel
+                  ? '¡Completaste todos los niveles! ¡Sos una detective experta! 🏆'
+                  : `¡Detective experta! 🏆 ${aciertos} aciertos en ${tiempoSegundos}s`
                 : '¡Muy bien intentado! ¿Vamos de nuevo? 💪'
             }
           />
+          {gano && !isLastLevel && (
+            <TouchableOpacity
+              style={[styles.btnPrimary, { backgroundColor: GAME_COLOR }]}
+              onPress={handleNextLevel}
+            >
+              <Text style={styles.btnPrimaryText}>¡Nivel {nivelIndex + 2}! ✨</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
-            style={[styles.btnPrimary, { backgroundColor: GAME_COLOR }]}
-            onPress={() => router.back()}
+            style={gano && !isLastLevel ? styles.btnOutline : [styles.btnPrimary, { backgroundColor: GAME_COLOR }]}
+            onPress={gano ? () => router.back() : handleRetry}
           >
-            <Text style={styles.btnPrimaryText}>
-              {gano ? '¡A la siguiente! ✨' : 'Intentar de nuevo'}
+            <Text style={gano && !isLastLevel ? [styles.btnOutlineText, { color: GAME_COLOR }] : styles.btnPrimaryText}>
+              {gano ? (isLastLevel ? '¡Al inicio! 🏠' : 'Volver al inicio') : 'Intentar de nuevo'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -155,20 +190,18 @@ export default function PalabrasGemelasScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* Top bar */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={[styles.navText, { color: GAME_COLOR }]}>← Volver</Text>
         </TouchableOpacity>
         <Text style={styles.navLabel}>
-          Par {gemelas.parIndex + 1} / {gemelas.totalPares}
+          Nivel {nivelIndex + 1} · Par {gemelas.parIndex + 1}/{gemelas.totalPares}
         </Text>
         <View style={styles.timerBadge}>
           <Text style={styles.timerText}>⏱ {tiempoSegundos}s</Text>
         </View>
       </View>
 
-      {/* Progress dots */}
       <View style={styles.dots}>
         {Array.from({ length: gemelas.totalPares }).map((_, i) => (
           <View
@@ -189,10 +222,8 @@ export default function PalabrasGemelasScreen() {
       </View>
 
       <View style={styles.content}>
-        {/* Question label */}
         <Text style={styles.questionLabel}>🔍 ¿Son la misma palabra?</Text>
 
-        {/* Word cards */}
         {par && (
           <Animated.View
             style={[
@@ -208,39 +239,27 @@ export default function PalabrasGemelasScreen() {
           </Animated.View>
         )}
 
-        {/* Lexy */}
         <LexyCharacter mood={lexyMood} size={64} message={lexyMsg} />
 
-        {/* Answer buttons */}
         <View style={styles.answersRow}>
           <TouchableOpacity
-            style={[
-              styles.answerBtn,
-              { backgroundColor: Colors.success + '18', borderColor: Colors.success },
-            ]}
+            style={[styles.answerBtn, { backgroundColor: Colors.success + '18', borderColor: Colors.success }]}
             onPress={() => handleRespuesta(true)}
             disabled={resultado !== null}
             activeOpacity={0.8}
           >
             <Text style={styles.answerEmoji}>👯</Text>
-            <Text style={[styles.answerText, { color: Colors.success }]}>
-              ¡Son gemelas!
-            </Text>
+            <Text style={[styles.answerText, { color: Colors.success }]}>¡Son gemelas!</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.answerBtn,
-              { backgroundColor: Colors.error + '18', borderColor: Colors.error },
-            ]}
+            style={[styles.answerBtn, { backgroundColor: Colors.error + '18', borderColor: Colors.error }]}
             onPress={() => handleRespuesta(false)}
             disabled={resultado !== null}
             activeOpacity={0.8}
           >
             <Text style={styles.answerEmoji}>🔍</Text>
-            <Text style={[styles.answerText, { color: Colors.error }]}>
-              Son diferentes
-            </Text>
+            <Text style={[styles.answerText, { color: Colors.error }]}>Son diferentes</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -260,7 +279,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   navText: { fontSize: 17, fontFamily: 'OpenDyslexic' },
-  navLabel: { ...Typography.body, color: Colors.textSecondary, fontFamily: 'OpenDyslexic' },
+  navLabel: { ...Typography.body, color: Colors.textSecondary, fontFamily: 'OpenDyslexic', fontSize: 13 },
   timerBadge: {
     backgroundColor: Colors.lexyPurpleLight,
     borderRadius: 12,
@@ -277,12 +296,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 24,
   },
-  questionLabel: {
-    ...Typography.h3,
-    color: Colors.textPrimary,
-    fontFamily: 'OpenDyslexic-Bold',
-    textAlign: 'center',
-  },
+  questionLabel: { ...Typography.h3, color: Colors.textPrimary, fontFamily: 'OpenDyslexic-Bold', textAlign: 'center' },
   wordsContainer: {
     width: '100%',
     backgroundColor: Colors.backgroundCard,
@@ -302,60 +316,17 @@ const styles = StyleSheet.create({
   cardSuccess: { borderColor: Colors.success, backgroundColor: Colors.successLight },
   cardError: { borderColor: Colors.error, backgroundColor: Colors.errorLight },
   wordDiffRow: { flexDirection: 'row', gap: 3 },
-  wordChar: {
-    fontSize: 42,
-    fontFamily: 'OpenDyslexic-Bold',
-    letterSpacing: 4,
-    color: Colors.textPrimary,
-  },
+  wordChar: { fontSize: 42, fontFamily: 'OpenDyslexic-Bold', letterSpacing: 4, color: Colors.textPrimary },
   wordCharDiff: { color: GAME_COLOR },
-  divider: {
-    width: '60%',
-    height: 2,
-    backgroundColor: Colors.border,
-    borderRadius: 1,
-  },
-  answersRow: {
-    flexDirection: 'row',
-    gap: 16,
-    width: '100%',
-  },
-  answerBtn: {
-    flex: 1,
-    borderWidth: 2.5,
-    borderRadius: 20,
-    paddingVertical: 20,
-    alignItems: 'center',
-    gap: 8,
-  },
+  divider: { width: '60%', height: 2, backgroundColor: Colors.border, borderRadius: 1 },
+  answersRow: { flexDirection: 'row', gap: 16, width: '100%' },
+  answerBtn: { flex: 1, borderWidth: 2.5, borderRadius: 20, paddingVertical: 20, alignItems: 'center', gap: 8 },
   answerEmoji: { fontSize: 32 },
-  answerText: {
-    fontSize: 18,
-    fontFamily: 'OpenDyslexic-Bold',
-    textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 24,
-    paddingHorizontal: 32,
-  },
+  answerText: { fontSize: 18, fontFamily: 'OpenDyslexic-Bold', textAlign: 'center', letterSpacing: 0.5 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 20, paddingHorizontal: 32 },
   errorText: { ...Typography.body, color: Colors.error, textAlign: 'center' },
-  btnOutline: {
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: GAME_COLOR,
-  },
+  btnOutline: { paddingVertical: 14, paddingHorizontal: 32, borderRadius: 20, borderWidth: 2, borderColor: GAME_COLOR, width: '100%', alignItems: 'center' },
   btnOutlineText: { fontSize: 18, fontFamily: 'OpenDyslexic' },
-  btnPrimary: { paddingVertical: 18, paddingHorizontal: 40, borderRadius: 24 },
-  btnPrimaryText: {
-    fontSize: 20,
-    color: '#FFFFFF',
-    fontFamily: 'OpenDyslexic-Bold',
-    letterSpacing: 0.5,
-  },
+  btnPrimary: { paddingVertical: 18, paddingHorizontal: 40, borderRadius: 24, width: '100%', alignItems: 'center' },
+  btnPrimaryText: { fontSize: 20, color: '#FFFFFF', fontFamily: 'OpenDyslexic-Bold', letterSpacing: 0.5 },
 });

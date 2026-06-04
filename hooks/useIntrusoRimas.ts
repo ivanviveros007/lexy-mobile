@@ -26,9 +26,14 @@ function shuffle<T>(arr: T[]): T[] {
   return out;
 }
 
-export function useIntrusoRimas(config: ConfigIntrusoRimas): UseIntrusoRimasResult {
+export function useIntrusoRimas(config: ConfigIntrusoRimas, resetKey: string = ''): UseIntrusoRimasResult {
   const [grupoIndex, setGrupoIndex] = useState(0);
   const [palabrasMezcladas, setPalabrasMezcladas] = useState<PalabraRimaItem[]>([]);
+
+  useEffect(() => {
+    setGrupoIndex(0);
+    setPalabrasMezcladas([]);
+  }, [resetKey]);
 
   const grupoActual = config.grupos[grupoIndex] ?? null;
   const juegoTerminado = grupoIndex >= config.grupos.length;
