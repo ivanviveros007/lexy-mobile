@@ -4,10 +4,7 @@
     "slug": "lexy",
     "owner": "iviveros.expo",
     "version": "1.0.0",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "orientation": "portrait",
+"orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "lexy",
     "userInterfaceStyle": "light",
