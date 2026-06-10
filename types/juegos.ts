@@ -8,7 +8,8 @@ export type TipoJuego =
   | 'palabras_gemelas'
   | 'intruso_rimas'
   | 'conductor_texto'
-  | 'memotest';
+  | 'memotest'
+  | 'carrera_lectura';
 
 // ── Cazador de Sílabas ────────────────────────────────────────────────────────
 export interface PalabraConSilabas {
@@ -74,6 +75,19 @@ export interface CartaMemotest {
 export interface ConfigMemotest {
   tipo: 'memotest';
   cartas: CartaMemotest[];
+  // = cantidad de parejas; la partida se gana al encontrarlas todas
+  minAciertos: number;
+}
+
+// ── Carrera de Lectura ────────────────────────────────────────────────────────
+// El rival avanza con el reloj (tiempoLimiteSegundos = palabras × segundosPorPalabra);
+// la jugadora avanza presionando un botón por cada palabra leída
+export interface ConfigCarreraLectura {
+  tipo: 'carrera_lectura';
+  palabras: string[];
+  segundosPorPalabra: number;
+  // = palabras.length; se gana al leerlas todas antes de que llegue el rival
+  minAciertos: number;
 }
 
 // ── Union discriminada ────────────────────────────────────────────────────────
@@ -82,7 +96,8 @@ export type ConfiguracionJuego =
   | ConfigPalabrasGemelas
   | ConfigIntrusoRimas
   | ConfigMemotest
-  | ConfigConductorTexto;
+  | ConfigConductorTexto
+  | ConfigCarreraLectura;
 
 // ── Nivel ─────────────────────────────────────────────────────────────────────
 export interface Nivel {

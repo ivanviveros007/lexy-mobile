@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { SyllableBubble } from '../../../components/games/SyllableBubble';
 import { LexyCharacter } from '../../../components/LexyCharacter';
 import { iniciarPartidaAtom, estadoPartidaAtom } from '../../../atoms/gameAtom';
 import { getNivelIndex, saveNivelIndex } from '../../../services/progresoLocal';
+import { mensajeVictoria, mensajeVictoriaFinal, mensajeAliento } from '../../../services/mensajesLexy';
 import { Colors } from '../../../constants/colors';
 import { Typography } from '../../../constants/fonts';
 import type { ConfigCazadorSilabas } from '../../../types/juegos';
@@ -25,12 +26,48 @@ const WORD_EMOJI: Record<string, string> = {
   gato: '🐱',
   luna: '🌙',
   silla: '🪑',
+  mesa: '🍽️',
+  pato: '🦆',
+  casa: '🏠',
+  nube: '☁️',
+  taza: '☕',
+  mano: '✋',
   pelota: '⚽',
   camino: '🛤️',
   zapato: '👟',
+  manzana: '🍎',
+  conejo: '🐰',
+  ventana: '🪟',
+  tomate: '🍅',
+  paloma: '🕊️',
+  helado: '🍦',
+  plátano: '🍌',
+  estrella: '⭐',
+  brújula: '🧭',
   mariposa: '🦋',
   caballito: '🐴',
   dinosaurio: '🦕',
+  chocolate: '🍫',
+  elefante: '🐘',
+  bicicleta: '🚲',
+  mermelada: '🍓',
+  calabaza: '🎃',
+  mandarina: '🍊',
+  escalera: '🪜',
+  cocodrilo: '🐊',
+  estrellita: '✨',
+  computadora: '💻',
+  hipopótamo: '🦛',
+  murciélago: '🦇',
+  helicóptero: '🚁',
+  supermercado: '🛒',
+  maravilloso: '🌈',
+  veterinaria: '🩺',
+  ferrocarril: '🚂',
+  primavera: '🌸',
+  extraterrestre: '👽',
+  rompecabezas: '🧩',
+  paracaidista: '🪂',
 };
 
 const GAME_COLOR = Colors.cazadorSilabas;
@@ -57,9 +94,11 @@ export default function CazadorSilabasScreen() {
     });
   }, []);
 
-  const nivel = indexLoaded ? (niveles[nivelIndex] ?? null) : null;
+  // clamp: el índice guardado = niveles completados, puede ser igual al total
+  const idx = niveles.length > 0 ? Math.min(nivelIndex, niveles.length - 1) : nivelIndex;
+  const nivel = indexLoaded ? (niveles[idx] ?? null) : null;
   const config = nivel?.configuracion as ConfigCazadorSilabas | undefined;
-  const isLastLevel = nivelIndex >= niveles.length - 1;
+  const isLastLevel = idx >= niveles.length - 1;
 
   const { responder, aciertos, tiempoSegundos } = useGameLogic();
 
@@ -75,15 +114,33 @@ export default function CazadorSilabasScreen() {
     }
   }, [nivel, gameStarted]);
 
+  // Marca el nivel como completado apenas se gana (aunque salga sin tocar nada)
+  useEffect(() => {
+    if (estadoPartida === 'ganada') {
+      saveNivelIndex('cazador_silabas', idx + 1);
+    }
+  }, [estadoPartida, idx]);
+
+  const resultadoMsg = useMemo(() => {
+    if (estadoPartida === 'ganada') {
+      return isLastLevel
+        ? mensajeVictoriaFinal()
+        : `${mensajeVictoria()} Armaste ${aciertos} palabras en ${tiempoSegundos}s`;
+    }
+    if (estadoPartida === 'perdida') return mensajeAliento();
+    return '';
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estadoPartida]);
+
   const handleNextLevel = useCallback(async () => {
-    const next = nivelIndex + 1;
+    const next = idx + 1;
     await saveNivelIndex('cazador_silabas', next);
     setNivelIndex(next);
     setGameStarted(false);
     setPalabraResuelta(false);
     setLexyMensaje('¡Toca las sílabas en orden para armar la palabra! 🎯');
     setLexyMood('thinking');
-  }, [nivelIndex]);
+  }, [idx]);
 
   const handleRetry = useCallback(() => {
     setGameStarted(false);
@@ -154,20 +211,14 @@ export default function CazadorSilabasScreen() {
           <LexyCharacter
             mood={gano ? 'celebrating' : 'encouraging'}
             size={100}
-            message={
-              gano
-                ? isLastLevel
-                  ? '¡Completaste todos los niveles! ¡Sos una campeona! 🏆'
-                  : `¡Lo lograste! 🌟 Armaste ${aciertos} palabras en ${tiempoSegundos}s`
-                : '¡Muy bien intentado! Vamos de nuevo 💪'
-            }
+            message={resultadoMsg}
           />
           {gano && !isLastLevel && (
             <TouchableOpacity
               style={[styles.btnPrimary, { backgroundColor: GAME_COLOR }]}
               onPress={handleNextLevel}
             >
-              <Text style={styles.btnPrimaryText}>¡Nivel {nivelIndex + 2}! ✨</Text>
+              <Text style={styles.btnPrimaryText}>¡Nivel {idx + 2}! ✨</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity
@@ -193,30 +244,32 @@ export default function CazadorSilabasScreen() {
           <Text style={styles.backText}>← Volver</Text>
         </TouchableOpacity>
         <Text style={styles.progressLabel}>
-          Nivel {nivelIndex + 1} · Palabra {cazador.palabraIndex + 1}/{cazador.totalPalabras}
+          Nivel {idx + 1} · Palabra {cazador.palabraIndex + 1}/{cazador.totalPalabras}
         </Text>
+      </View>
+
+      <View style={styles.dotsRow}>
+        <View style={styles.dots}>
+          {Array.from({ length: cazador.totalPalabras }).map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.dot,
+                {
+                  backgroundColor:
+                    i < cazador.palabraIndex
+                      ? GAME_COLOR
+                      : i === cazador.palabraIndex
+                      ? GAME_COLOR + '66'
+                      : Colors.border,
+                },
+              ]}
+            />
+          ))}
+        </View>
         <View style={styles.timerBadge}>
           <Text style={styles.timerText}>⏱ {tiempoSegundos}s</Text>
         </View>
-      </View>
-
-      <View style={styles.dots}>
-        {Array.from({ length: cazador.totalPalabras }).map((_, i) => (
-          <View
-            key={i}
-            style={[
-              styles.dot,
-              {
-                backgroundColor:
-                  i < cazador.palabraIndex
-                    ? GAME_COLOR
-                    : i === cazador.palabraIndex
-                    ? GAME_COLOR + '66'
-                    : Colors.border,
-              },
-            ]}
-          />
-        ))}
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -291,7 +344,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   timerText: { fontSize: 14, color: Colors.lexyPurpleDark, fontFamily: 'OpenDyslexic' },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingVertical: 10 },
+  dotsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 },
+  dots: { flexDirection: 'row', gap: 8, flex: 1, justifyContent: 'center' },
   dot: { width: 12, height: 12, borderRadius: 6 },
   content: { paddingHorizontal: 24, paddingBottom: 32, alignItems: 'center', gap: 24 },
   imageBox: {

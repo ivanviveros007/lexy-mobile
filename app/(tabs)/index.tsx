@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useAtomValue } from 'jotai';
 import { GameCard } from '../../components/GameCard';
 import { LexyCharacter } from '../../components/LexyCharacter';
-import { usuarioAtom, puntosAtom, rachaActualAtom } from '../../atoms';
+import { usuarioAtom } from '../../atoms';
 import { useProgresoLocal } from '../../hooks/useProgresoLocal';
 import { Colors } from '../../constants/colors';
 import { Typography } from '../../constants/fonts';
@@ -49,9 +49,16 @@ const JUEGOS: Array<{
   {
     tipoJuego: 'memotest',
     titulo: 'Memotest de Palabras',
-    descripcion: '¡Encuentra las parejas de palabras!',
+    descripcion: '¡Encuentra las parejas de dibujos!',
     emoji: '🧠',
     ruta: '/games/memotest',
+  },
+  {
+    tipoJuego: 'carrera_lectura',
+    titulo: 'La Carrera del Dino',
+    descripcion: '¡Lee más rápido que el auto y gana!',
+    emoji: '🦖',
+    ruta: '/games/carrera-lectura',
   },
 ];
 
@@ -59,9 +66,9 @@ const JUEGOS: Array<{
 export default function HomeScreen() {
   const router = useRouter();
   const usuario = useAtomValue(usuarioAtom);
-  const puntos = useAtomValue(puntosAtom);
-  const racha = useAtomValue(rachaActualAtom);
-  const progreso = useProgresoLocal();
+  const { progreso, stats } = useProgresoLocal();
+  const puntos = stats?.puntosTotales ?? 0;
+  const racha = stats?.rachaActual ?? 0;
 
   const nombre = usuario?.nombre ?? 'Male';
 
@@ -111,7 +118,7 @@ export default function HomeScreen() {
             descripcion={juego.descripcion}
             emoji={juego.emoji}
             nivelesCompletados={progreso?.[juego.tipoJuego]?.nivelesCompletados ?? 0}
-            totalNiveles={progreso?.[juego.tipoJuego]?.totalNiveles ?? 3}
+            totalNiveles={progreso?.[juego.tipoJuego]?.totalNiveles ?? 15}
             onPress={() => router.push(juego.ruta as any)}
           />
         ))}

@@ -12,6 +12,7 @@ import {
 } from '../atoms/gameAtom';
 import { usuarioAtom } from '../atoms/userAtom';
 import { useProgreso } from './useProgreso';
+import { registrarNivelGanado } from '../services/progresoLocal';
 import type { TurnoJuego } from '../types/juegos';
 
 interface UseGameLogicResult {
@@ -90,6 +91,9 @@ export function useGameLogic(): UseGameLogicResult {
 
       if (ganada) {
         setEstadoPartida('ganada');
+
+        // Estadísticas locales — siempre, con o sin backend
+        void registrarNivelGanado(nivel.puntosRecompensa);
 
         if (usuario) {
           completarNivel({

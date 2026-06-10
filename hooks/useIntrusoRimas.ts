@@ -49,7 +49,7 @@ export function useIntrusoRimas(config: ConfigIntrusoRimas, resetKey: string = '
       { id: `g${grupoIndex}-intruso`, texto: grupoActual.intruso, esIntruso: true },
     ];
     setPalabrasMezcladas(shuffle(items));
-  }, [grupoIndex]);
+  }, [grupoIndex, grupoActual?.palabras[0], resetKey]);
 
   const responderPalabra = useCallback(
     (item: PalabraRimaItem): 'correcto' | 'incorrecto' =>

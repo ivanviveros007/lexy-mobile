@@ -23,6 +23,7 @@ export const Colors = {
   intrusoRimas: '#FFB74D',     // ámbar
   conductorTexto: '#81C784',   // verde suave
   memotest: '#BA68C8',         // lila
+  carreraLectura: '#64B5F6',   // celeste
 
   // Estado
   success: '#4CAF50',

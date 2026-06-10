@@ -4,25 +4,31 @@ import { useAtomValue } from 'jotai';
 import { LexyCharacter, type LexyMood } from '../../components/LexyCharacter';
 import { StreakBadge } from '../../components/StreakBadge';
 import { ProgressBar } from '../../components/ProgressBar';
-import {
-  usuarioAtom,
-  puntosAtom,
-  rachaActualAtom,
-  rachaMaximaAtom,
-  nivelesCompletadosAtom,
-} from '../../atoms';
+import { usuarioAtom } from '../../atoms';
+import { useProgresoLocal } from '../../hooks/useProgresoLocal';
 import { Colors } from '../../constants/colors';
 import { Typography } from '../../constants/fonts';
+import type { TipoJuego } from '../../types/juegos';
 
-// Pantalla puramente presentacional — Lexy muestra logros y motivación
+const JUEGOS_PERFIL: Array<{ tipoJuego: TipoJuego; emoji: string; label: string; color: string }> = [
+  { tipoJuego: 'cazador_silabas', emoji: '🎯', label: 'Cazador de Sílabas', color: Colors.cazadorSilabas },
+  { tipoJuego: 'palabras_gemelas', emoji: '👯', label: 'Palabras Gemelas', color: Colors.palabrasGemelas },
+  { tipoJuego: 'intruso_rimas', emoji: '🔍', label: 'Intruso de las Rimas', color: Colors.intrusoRimas },
+  { tipoJuego: 'conductor_texto', emoji: '🚀', label: 'Conductor del Texto', color: Colors.conductorTexto },
+  { tipoJuego: 'memotest', emoji: '🧠', label: 'Memotest de Palabras', color: Colors.memotest },
+  { tipoJuego: 'carrera_lectura', emoji: '🦖', label: 'La Carrera del Dino', color: Colors.carreraLectura },
+];
+
+// Lexy muestra logros y motivación con datos reales guardados en el dispositivo
 export default function ProfileScreen() {
   const usuario = useAtomValue(usuarioAtom);
-  const puntos = useAtomValue(puntosAtom);
-  const racha = useAtomValue(rachaActualAtom);
-  const rachaMaxima = useAtomValue(rachaMaximaAtom);
-  const nivelesCompletados = useAtomValue(nivelesCompletadosAtom);
+  const { progreso, stats } = useProgresoLocal();
+  const puntos = stats?.puntosTotales ?? 0;
+  const racha = stats?.rachaActual ?? 0;
+  const rachaMaxima = stats?.rachaMaxima ?? 0;
+  const nivelesCompletados = stats?.nivelesCompletados ?? 0;
 
-  const nombre = usuario?.nombre ?? 'aventurera';
+  const nombre = usuario?.nombre ?? 'Male';
 
   const lexyMood: LexyMood =
     racha >= 7 ? 'celebrating' : racha >= 3 ? 'happy' : 'encouraging';
@@ -79,30 +85,13 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Progreso por aventura</Text>
           <View style={styles.progressList}>
-            <ProgressRow
-              emoji="🎯"
-              label="Cazador de Sílabas"
-              valor={0.4}
-              color={Colors.cazadorSilabas}
-            />
-            <ProgressRow
-              emoji="👯"
-              label="Palabras Gemelas"
-              valor={0.2}
-              color={Colors.palabrasGemelas}
-            />
-            <ProgressRow
-              emoji="🔍"
-              label="Intruso de las Rimas"
-              valor={0.1}
-              color={Colors.intrusoRimas}
-            />
-            <ProgressRow
-              emoji="🚀"
-              label="Conductor del Texto"
-              valor={0.05}
-              color={Colors.conductorTexto}
-            />
+            {JUEGOS_PERFIL.map(({ tipoJuego, emoji, label, color }) => {
+              const p = progreso?.[tipoJuego];
+              const valor = p && p.totalNiveles > 0 ? p.nivelesCompletados / p.totalNiveles : 0;
+              return (
+                <ProgressRow key={tipoJuego} emoji={emoji} label={label} valor={valor} color={color} />
+              );
+            })}
           </View>
         </View>
 

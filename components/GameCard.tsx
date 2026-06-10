@@ -20,6 +20,7 @@ const CARD_COLOR: Record<TipoJuego, string> = {
   intruso_rimas: Colors.intrusoRimas,
   conductor_texto: Colors.conductorTexto,
   memotest: Colors.memotest,
+  carrera_lectura: Colors.carreraLectura,
 };
 
 export function GameCard({

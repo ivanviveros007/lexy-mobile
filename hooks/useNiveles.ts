@@ -26,12 +26,10 @@ export function useNiveles(tipoJuego: TipoJuego): UseNivelesResult {
       .getNiveles(tipoJuego)
       .then((data) => {
         if (cancelled) return;
-        // If backend returns empty array, fall back to local seed
-        if (data.length > 0) {
-          setNiveles(data);
-        } else {
-          setNiveles(getNivelesLocales(tipoJuego));
-        }
+        // Usar la fuente con más niveles: el backend puede quedarse atrás
+        // respecto del seed local cuando agregamos niveles por OTA
+        const locales = getNivelesLocales(tipoJuego);
+        setNiveles(data.length >= locales.length ? data : locales);
       })
       .catch(() => {
         // Backend unavailable — use local seed data silently

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { useGameLogic } from '../../../hooks/useGameLogic';
 import { LexyCharacter } from '../../../components/LexyCharacter';
 import { iniciarPartidaAtom, estadoPartidaAtom } from '../../../atoms/gameAtom';
 import { getNivelIndex, saveNivelIndex } from '../../../services/progresoLocal';
+import { mensajeVictoria, mensajeVictoriaFinal, mensajeAliento } from '../../../services/mensajesLexy';
 import { Colors } from '../../../constants/colors';
 import { Typography } from '../../../constants/fonts';
 import type { ConfigIntrusoRimas } from '../../../types/juegos';
@@ -46,9 +47,11 @@ export default function IntrusoRimasScreen() {
     });
   }, []);
 
-  const nivel = indexLoaded ? (niveles[nivelIndex] ?? null) : null;
+  // clamp: el índice guardado = niveles completados, puede ser igual al total
+  const idx = niveles.length > 0 ? Math.min(nivelIndex, niveles.length - 1) : nivelIndex;
+  const nivel = indexLoaded ? (niveles[idx] ?? null) : null;
   const config = nivel?.configuracion as ConfigIntrusoRimas | undefined;
-  const isLastLevel = nivelIndex >= niveles.length - 1;
+  const isLastLevel = idx >= niveles.length - 1;
 
   const { responder, aciertos, tiempoSegundos } = useGameLogic();
   const rimas = useIntrusoRimas(
@@ -63,15 +66,33 @@ export default function IntrusoRimasScreen() {
     }
   }, [nivel, gameStarted]);
 
+  // Marca el nivel como completado apenas se gana
+  useEffect(() => {
+    if (estadoPartida === 'ganada') {
+      saveNivelIndex('intruso_rimas', idx + 1);
+    }
+  }, [estadoPartida, idx]);
+
+  const resultadoMsg = useMemo(() => {
+    if (estadoPartida === 'ganada') {
+      return isLastLevel
+        ? mensajeVictoriaFinal()
+        : `${mensajeVictoria()} ${aciertos} intrusos atrapados en ${tiempoSegundos}s 🎶`;
+    }
+    if (estadoPartida === 'perdida') return mensajeAliento();
+    return '';
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estadoPartida]);
+
   const handleNextLevel = useCallback(async () => {
-    const next = nivelIndex + 1;
+    const next = idx + 1;
     await saveNivelIndex('intruso_rimas', next);
     setNivelIndex(next);
     setGameStarted(false);
     setTappedId(null);
     setLexyMsg('Dos palabras riman entre sí. ¡Encuentra la que no rima! 🎵');
     setLexyMood('thinking');
-  }, [nivelIndex]);
+  }, [idx]);
 
   const handleRetry = useCallback(() => {
     setGameStarted(false);
@@ -158,20 +179,14 @@ export default function IntrusoRimasScreen() {
           <LexyCharacter
             mood={gano ? 'celebrating' : 'encouraging'}
             size={100}
-            message={
-              gano
-                ? isLastLevel
-                  ? '¡Sos un oído musical experto! ¡Completaste todo! 🏆'
-                  : `¡Oído musical! 🎶 ${aciertos} intrusos atrapados en ${tiempoSegundos}s`
-                : '¡Casi! ¡La próxima es tuya! 💪'
-            }
+            message={resultadoMsg}
           />
           {gano && !isLastLevel && (
             <TouchableOpacity
               style={[styles.btnPrimary, { backgroundColor: GAME_COLOR }]}
               onPress={handleNextLevel}
             >
-              <Text style={styles.btnPrimaryText}>¡Nivel {nivelIndex + 2}! ✨</Text>
+              <Text style={styles.btnPrimaryText}>¡Nivel {idx + 2}! ✨</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity
@@ -194,30 +209,32 @@ export default function IntrusoRimasScreen() {
           <Text style={[styles.navText, { color: GAME_COLOR }]}>← Volver</Text>
         </TouchableOpacity>
         <Text style={styles.navLabel}>
-          Nivel {nivelIndex + 1} · Grupo {rimas.grupoIndex + 1}/{rimas.totalGrupos}
+          Nivel {idx + 1} · Grupo {rimas.grupoIndex + 1}/{rimas.totalGrupos}
         </Text>
+      </View>
+
+      <View style={styles.dotsRow}>
+        <View style={styles.dots}>
+          {Array.from({ length: rimas.totalGrupos }).map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.dot,
+                {
+                  backgroundColor:
+                    i < rimas.grupoIndex
+                      ? GAME_COLOR
+                      : i === rimas.grupoIndex
+                      ? GAME_COLOR + '66'
+                      : Colors.border,
+                },
+              ]}
+            />
+          ))}
+        </View>
         <View style={styles.timerBadge}>
           <Text style={styles.timerText}>⏱ {tiempoSegundos}s</Text>
         </View>
-      </View>
-
-      <View style={styles.dots}>
-        {Array.from({ length: rimas.totalGrupos }).map((_, i) => (
-          <View
-            key={i}
-            style={[
-              styles.dot,
-              {
-                backgroundColor:
-                  i < rimas.grupoIndex
-                    ? GAME_COLOR
-                    : i === rimas.grupoIndex
-                    ? GAME_COLOR + '66'
-                    : Colors.border,
-              },
-            ]}
-          />
-        ))}
       </View>
 
       <View style={styles.content}>
@@ -290,7 +307,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   timerText: { fontSize: 14, color: Colors.lexyPurpleDark, fontFamily: 'OpenDyslexic' },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingVertical: 10 },
+  dotsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 },
+  dots: { flexDirection: 'row', gap: 8, flex: 1, justifyContent: 'center' },
   dot: { width: 12, height: 12, borderRadius: 6 },
   content: {
     flex: 1,

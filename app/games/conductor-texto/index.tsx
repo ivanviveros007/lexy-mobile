@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { useGameLogic } from '../../../hooks/useGameLogic';
 import { LexyCharacter } from '../../../components/LexyCharacter';
 import { iniciarPartidaAtom, estadoPartidaAtom } from '../../../atoms/gameAtom';
 import { getNivelIndex, saveNivelIndex } from '../../../services/progresoLocal';
+import { mensajeVictoria, mensajeVictoriaFinal, mensajeAliento } from '../../../services/mensajesLexy';
 import { Colors } from '../../../constants/colors';
 import { Typography } from '../../../constants/fonts';
 import type { ConfigConductorTexto } from '../../../types/juegos';
@@ -70,9 +71,11 @@ export default function ConductorTextoScreen() {
     });
   }, []);
 
-  const nivel = indexLoaded ? (niveles[nivelIndex] ?? null) : null;
+  // clamp: el índice guardado = niveles completados, puede ser igual al total
+  const idx = niveles.length > 0 ? Math.min(nivelIndex, niveles.length - 1) : nivelIndex;
+  const nivel = indexLoaded ? (niveles[idx] ?? null) : null;
   const config = nivel?.configuracion as ConfigConductorTexto | undefined;
-  const isLastLevel = nivelIndex >= niveles.length - 1;
+  const isLastLevel = idx >= niveles.length - 1;
 
   const { responder, aciertos, tiempoSegundos } = useGameLogic();
   const conductor = useConductorTexto(
@@ -87,8 +90,26 @@ export default function ConductorTextoScreen() {
     }
   }, [nivel, gameStarted]);
 
+  // Marca el nivel como completado apenas se gana
+  useEffect(() => {
+    if (estadoPartida === 'ganada') {
+      saveNivelIndex('conductor_texto', idx + 1);
+    }
+  }, [estadoPartida, idx]);
+
+  const resultadoMsg = useMemo(() => {
+    if (estadoPartida === 'ganada') {
+      return isLastLevel
+        ? mensajeVictoriaFinal()
+        : `${mensajeVictoria()} ${aciertos} respuestas en ${tiempoSegundos}s 📖`;
+    }
+    if (estadoPartida === 'perdida') return mensajeAliento();
+    return '';
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estadoPartida]);
+
   const handleNextLevel = useCallback(async () => {
-    const next = nivelIndex + 1;
+    const next = idx + 1;
     await saveNivelIndex('conductor_texto', next);
     setNivelIndex(next);
     setGameStarted(false);
@@ -96,7 +117,7 @@ export default function ConductorTextoScreen() {
     setAnswered(false);
     setLexyMsg('Mantén presionada una palabra para escucharla 🔊');
     setLexyMood('thinking');
-  }, [nivelIndex]);
+  }, [idx]);
 
   const handleRetry = useCallback(() => {
     setGameStarted(false);
@@ -169,20 +190,14 @@ export default function ConductorTextoScreen() {
           <LexyCharacter
             mood={gano ? 'celebrating' : 'encouraging'}
             size={100}
-            message={
-              gano
-                ? isLastLevel
-                  ? '¡Completaste todas las historias! ¡Sos una lectora experta! 🏆'
-                  : `¡Lectora experta! 📖 ${aciertos} respuestas en ${tiempoSegundos}s`
-                : '¡Lo intentaste con todo! ¡Vamos de nuevo! 💪'
-            }
+            message={resultadoMsg}
           />
           {gano && !isLastLevel && (
             <TouchableOpacity
               style={[styles.btnPrimary, { backgroundColor: GAME_COLOR }]}
               onPress={handleNextLevel}
             >
-              <Text style={styles.btnPrimaryText}>¡Nivel {nivelIndex + 2}! ✨</Text>
+              <Text style={styles.btnPrimaryText}>¡Nivel {idx + 2}! ✨</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity
@@ -207,30 +222,32 @@ export default function ConductorTextoScreen() {
           <Text style={[styles.navText, { color: GAME_COLOR }]}>← Volver</Text>
         </TouchableOpacity>
         <Text style={styles.navLabel}>
-          Nivel {nivelIndex + 1} · Pregunta {conductor.preguntaIndex + 1}/{conductor.totalPreguntas}
+          Nivel {idx + 1} · Pregunta {conductor.preguntaIndex + 1}/{conductor.totalPreguntas}
         </Text>
+      </View>
+
+      <View style={styles.dotsRow}>
+        <View style={styles.dots}>
+          {Array.from({ length: conductor.totalPreguntas }).map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.dot,
+                {
+                  backgroundColor:
+                    i < conductor.preguntaIndex
+                      ? GAME_COLOR
+                      : i === conductor.preguntaIndex
+                      ? GAME_COLOR + '66'
+                      : Colors.border,
+                },
+              ]}
+            />
+          ))}
+        </View>
         <View style={styles.timerBadge}>
           <Text style={styles.timerText}>⏱ {tiempoSegundos}s</Text>
         </View>
-      </View>
-
-      <View style={styles.dots}>
-        {Array.from({ length: conductor.totalPreguntas }).map((_, i) => (
-          <View
-            key={i}
-            style={[
-              styles.dot,
-              {
-                backgroundColor:
-                  i < conductor.preguntaIndex
-                    ? GAME_COLOR
-                    : i === conductor.preguntaIndex
-                    ? GAME_COLOR + '66'
-                    : Colors.border,
-              },
-            ]}
-          />
-        ))}
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -320,7 +337,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   timerText: { fontSize: 14, color: Colors.lexyPurpleDark, fontFamily: 'OpenDyslexic' },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingVertical: 10 },
+  dotsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 },
+  dots: { flexDirection: 'row', gap: 8, flex: 1, justifyContent: 'center' },
   dot: { width: 12, height: 12, borderRadius: 6 },
   content: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24, gap: 20, alignItems: 'center' },
   hintBox: {
